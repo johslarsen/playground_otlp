@@ -15,4 +15,6 @@ add_library(example example.cpp)
 target_link_libraries(example opentelemetry_api)
 
 add_executable(main main.cpp)
-target_link_libraries(main example opentelemetry_sdk opentelemetry_exporter_ostream_logs)
+target_link_libraries(
+  main example opentelemetry_sdk opentelemetry_exporter_ostream_logs
+  opentelemetry_exporter_ostream_span)
