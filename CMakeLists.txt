@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.2.0)
+cmake_minimum_required(VERSION 3.20.0)
 
 project(
   otlp
@@ -9,9 +9,9 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-set(WITH_PROMETHEUS ON)
-set(BUILD_TESTING OFF)
-set(WITH_BENCHMARK OFF)
+set(WITH_PROMETHEUS ON CACHE BOOL "")
+set(BUILD_TESTING OFF CACHE BOOL "")
+set(WITH_BENCHMARK OFF CACHE BOOL "")
 
 add_subdirectory(external/opentelemetry-cpp)
 
