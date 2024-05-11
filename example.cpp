@@ -1,5 +1,6 @@
 #include "example.h"
 
+#include <absl/log/log.h>
 #include <opentelemetry/logs/provider.h>
 #include <opentelemetry/metrics/provider.h>
 #include <opentelemetry/trace/context.h>
@@ -32,6 +33,8 @@ void example::foo(std::stop_token stop_token) {
   opentelemetry::trace::Scope child(trace()->StartSpan("child_scope"));
   log()->Info("implicitly tagged with child_scope");
   log()->Info("explicitly tagged with unrelated", unrelated->GetContext());
+
+  LOG(INFO) << "with the proper sink we can even use a other logging libraries";
 
   opentelemetry::context::Context ctx;
   ctx = opentelemetry::trace::SetSpan(ctx, unrelated);

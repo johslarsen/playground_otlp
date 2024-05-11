@@ -1,3 +1,5 @@
+#include <absl/log/initialize.h>
+#include <absl/log/log_sink_registry.h>
 #include <opentelemetry/exporters/ostream/log_record_exporter.h>
 #include <opentelemetry/exporters/ostream/metric_exporter.h>
 #include <opentelemetry/exporters/ostream/span_exporter.h>
@@ -13,6 +15,7 @@
 #include <opentelemetry/trace/provider.h>
 
 #include "example.h"
+#include "otlp_sink.h"
 
 int main() {
   using opentelemetry::exporter::trace::OStreamSpanExporter;
@@ -26,10 +29,15 @@ int main() {
   using opentelemetry::exporter::logs::OStreamLogRecordExporter;
   using opentelemetry::sdk::logs::LoggerProviderFactory;
   using opentelemetry::sdk::logs::SimpleLogRecordProcessor;
-  opentelemetry::logs::Provider::SetLoggerProvider(
-      LoggerProviderFactory::Create(
-          std::make_unique<SimpleLogRecordProcessor>(
-              std::make_unique<OStreamLogRecordExporter>())));
+  auto log_provider = LoggerProviderFactory::Create(
+      std::make_unique<SimpleLogRecordProcessor>(
+          std::make_unique<OStreamLogRecordExporter>()));
+
+  absl::InitializeLog();
+  OTLPSink sink(log_provider->GetLogger("absl"));
+  absl::AddLogSink(&sink);
+
+  opentelemetry::logs::Provider::SetLoggerProvider(std::move(log_provider));
 
   using opentelemetry::exporter::metrics::OStreamMetricExporter;
   using opentelemetry::exporter::metrics::PrometheusExporter;
