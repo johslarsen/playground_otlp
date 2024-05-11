@@ -1,7 +1,6 @@
 #include <absl/log/initialize.h>
 #include <absl/log/log_sink_registry.h>
 #include <opentelemetry/exporters/ostream/metric_exporter.h>
-#include <opentelemetry/exporters/ostream/span_exporter.h>
 #include <opentelemetry/exporters/prometheus/exporter.h>
 #include <opentelemetry/logs/provider.h>
 #include <opentelemetry/metrics/provider.h>
@@ -18,13 +17,12 @@
 #include "otlp_sink.h"
 
 int main() {
-  using opentelemetry::exporter::trace::OStreamSpanExporter;
   using opentelemetry::sdk::trace::SimpleSpanProcessor;
   using opentelemetry::sdk::trace::TracerProviderFactory;
   opentelemetry::trace::Provider::SetTracerProvider(
       TracerProviderFactory::Create(
           std::make_unique<SimpleSpanProcessor>(
-              std::make_unique<OStreamSpanExporter>())));
+              std::make_unique<LogfmtSpanExporter>())));
 
   using opentelemetry::sdk::logs::LoggerProviderFactory;
   using opentelemetry::sdk::logs::SimpleLogRecordProcessor;

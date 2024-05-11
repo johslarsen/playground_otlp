@@ -5,6 +5,7 @@
 #include <opentelemetry/sdk/trace/exporter.h>
 #include <opentelemetry/sdk/trace/span_data.h>
 
+#include <format>
 #include <iostream>
 
 struct AttrStreamer {
@@ -79,6 +80,53 @@ class LogfmtExporter : public opentelemetry::sdk::logs::LogRecordExporter {
       if (auto id = r->GetEventId(); id != 0) _out << " event_id=" << id;
       if (auto e = r->GetEventName(); !e.empty()) _out << " event_id=" << std::quoted(e);
       auto t = r->GetSpanId();
+      _out << "\n";
+    }
+
+    return opentelemetry::sdk::common::ExportResult::kSuccess;
+  }
+
+  bool ForceFlush(std::chrono::microseconds /*timeout*/ = std::chrono::microseconds::max()) noexcept override {
+    _out.flush();
+    return true;
+  }
+
+  bool Shutdown(std::chrono::microseconds /*timeout*/ = std::chrono::microseconds::max()) noexcept override {
+    return (_shutdown = true);
+  }
+};
+
+class LogfmtSpanExporter : public opentelemetry::sdk::trace::SpanExporter {
+  std::ostream& _out;
+  bool _shutdown = false;
+
+ public:
+  explicit LogfmtSpanExporter(std::ostream& out = std::cout) noexcept : _out(out) {}
+
+  std::unique_ptr<opentelemetry::sdk::trace::Recordable> MakeRecordable() noexcept override {
+    return std::make_unique<opentelemetry::sdk::trace::SpanData>();
+  }
+
+  opentelemetry::sdk::common::ExportResult Export(const std::span<std::unique_ptr<opentelemetry::sdk::trace::Recordable>>& records) noexcept
+      override {
+    if (_shutdown) return opentelemetry::sdk::common::ExportResult::kFailure;
+
+    for (const auto& record : records) {
+      if (record == nullptr) continue;
+      const auto* s = dynamic_cast<opentelemetry::sdk::trace::SpanData*>(record.get());
+
+      _out << "level=" << (s->GetParentSpanId().IsValid() ? "DEBUG" : "INFO")
+           << " name=" << std::quoted(s->GetName());
+      for (const auto& [k, v] : s->GetAttributes()) {
+        _out << ' ' << AttrKV{k, v};
+      }
+      _out << " start=" << std::format("{:%FT%T}", static_cast<std::chrono::system_clock::time_point>(s->GetStartTime()));
+      _out << " duration=" << s->GetDuration();
+      if (auto d = s->GetDescription(); !d.empty()) _out << " description=" << std::quoted(d);
+      if (const auto& id = s->GetTraceId(); id.IsValid()) _out << ' ' << NamedID{"trace_id", id};
+      if (const auto& id = s->GetSpanId(); id.IsValid()) _out << ' ' << NamedID{"span_id", id};
+      if (const auto& id = s->GetParentSpanId(); id.IsValid()) _out << ' ' << NamedID{"parent_span_id", id};
+
       _out << "\n";
     }
 
