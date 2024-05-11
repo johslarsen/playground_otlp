@@ -22,7 +22,7 @@ add_subdirectory(external/opentelemetry-cpp)
 add_library(example example.h example.cpp)
 target_link_libraries(example opentelemetry_api absl_log)
 
-add_executable(main main.cpp otlp_sink.h)
+add_executable(main main.cpp otlp_sink.h logfmt_exporter.h)
 target_link_libraries(
   main
   example
