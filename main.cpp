@@ -1,6 +1,5 @@
 #include <absl/log/initialize.h>
 #include <absl/log/log_sink_registry.h>
-#include <opentelemetry/exporters/ostream/metric_exporter.h>
 #include <opentelemetry/exporters/prometheus/exporter.h>
 #include <opentelemetry/logs/provider.h>
 #include <opentelemetry/metrics/provider.h>
@@ -36,7 +35,6 @@ int main() {
 
   opentelemetry::logs::Provider::SetLoggerProvider(std::move(log_provider));
 
-  using opentelemetry::exporter::metrics::OStreamMetricExporter;
   using opentelemetry::exporter::metrics::PrometheusExporter;
   using opentelemetry::exporter::metrics::PrometheusExporterOptions;
   using opentelemetry::sdk::metrics::InstrumentType;
@@ -44,10 +42,10 @@ int main() {
   using opentelemetry::sdk::metrics::PeriodicExportingMetricReaderOptions;
   auto p = std::make_unique<opentelemetry::sdk::metrics::MeterProvider>();
   p->AddMetricReader(std::make_unique<PeriodicExportingMetricReader>(
-      std::make_unique<OStreamMetricExporter>(), PeriodicExportingMetricReaderOptions{
-                                                     .export_interval_millis = std::chrono::seconds(1),
-                                                     .export_timeout_millis = std::chrono::milliseconds(500),
-                                                 }));
+      std::make_unique<LogfmtMetricExporter>(), PeriodicExportingMetricReaderOptions{
+                                                    .export_interval_millis = std::chrono::seconds(1),
+                                                    .export_timeout_millis = std::chrono::milliseconds(500),
+                                                }));
   PrometheusExporterOptions scraper_opts;  // localhost:9464 by default
   p->AddMetricReader(std::make_unique<PrometheusExporter>(scraper_opts));
 

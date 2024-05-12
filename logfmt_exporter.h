@@ -2,6 +2,8 @@
 
 #include <opentelemetry/sdk/logs/exporter.h>
 #include <opentelemetry/sdk/logs/read_write_log_record.h>
+#include <opentelemetry/sdk/metrics/export/metric_producer.h>
+#include <opentelemetry/sdk/metrics/push_metric_exporter.h>
 #include <opentelemetry/sdk/trace/exporter.h>
 #include <opentelemetry/sdk/trace/span_data.h>
 
@@ -131,6 +133,75 @@ class LogfmtSpanExporter : public opentelemetry::sdk::trace::SpanExporter {
     }
 
     return opentelemetry::sdk::common::ExportResult::kSuccess;
+  }
+
+  bool ForceFlush(std::chrono::microseconds /*timeout*/ = std::chrono::microseconds::max()) noexcept override {
+    _out.flush();
+    return true;
+  }
+
+  bool Shutdown(std::chrono::microseconds /*timeout*/ = std::chrono::microseconds::max()) noexcept override {
+    return (_shutdown = true);
+  }
+};
+
+struct MetricStreamer {
+  std::ostream& out;
+
+  void operator()(const opentelemetry::sdk::metrics::DropPointData& p) {}
+  void operator()(const opentelemetry::sdk::metrics::SumPointData& p) {
+    std::visit(AttrStreamer{out << " value="}, p.value_);
+  }
+  void operator()(const opentelemetry::sdk::metrics::LastValuePointData& p) {
+    std::visit(AttrStreamer{out << " value="}, p.value_);
+  }
+  void operator()(const opentelemetry::sdk::metrics::HistogramPointData& p) {
+    AttrStreamer{out << " counts="}(p.counts_);
+    AttrStreamer{out << " buckets="}(p.boundaries_);
+  }
+};
+
+class LogfmtMetricExporter : public opentelemetry::sdk::metrics::PushMetricExporter {
+  std::ostream& _out;
+  opentelemetry::sdk::metrics::AggregationTemporality _aggregation_temporality;
+  bool _shutdown = false;
+
+ public:
+  explicit LogfmtMetricExporter(
+      std::ostream& out = std::cout,
+      opentelemetry::sdk::metrics::AggregationTemporality aggregation_temporality = opentelemetry::sdk::metrics::AggregationTemporality::kCumulative) noexcept
+      : _out(out), _aggregation_temporality(aggregation_temporality) {}
+
+  opentelemetry::sdk::common::ExportResult Export(const opentelemetry::sdk::metrics::ResourceMetrics& data) noexcept override {
+    if (_shutdown) return opentelemetry::sdk::common::ExportResult::kFailure;
+
+    for (const auto& meter : data.scope_metric_data_) {
+      // WARN: the OStreamMetricExporter took some lock here to guard "_out",
+      // indicating that this is probably used multi-threaded. however, if that
+      // is the case it does not help much because _out is usually std::cout,
+      // so locking it within here does not block other std::cout usage!
+
+      for (const auto& instrument : meter.metric_data_) {
+        for (const auto& p : instrument.point_data_attr_) {
+          _out << "level=INFO"
+               << " meter=" << std::quoted(meter.scope_->GetName())
+               << " instrument=" << std::quoted(instrument.instrument_descriptor.name_);
+          for (const auto& [k, v] : p.attributes) {
+            _out << ' ' << AttrKV{k, v};
+          }
+          std::visit(MetricStreamer{_out}, p.point_data);
+          if (const auto& u = instrument.instrument_descriptor.unit_; !std::empty(u)) _out << " unit=" << u;
+          _out << "\n";
+        }
+      }
+    }
+
+    return opentelemetry::sdk::common::ExportResult::kSuccess;
+  }
+
+  opentelemetry::sdk::metrics::AggregationTemporality GetAggregationTemporality(
+      opentelemetry::sdk::metrics::InstrumentType /*instrument_type*/) const noexcept override {
+    return _aggregation_temporality;
   }
 
   bool ForceFlush(std::chrono::microseconds /*timeout*/ = std::chrono::microseconds::max()) noexcept override {
